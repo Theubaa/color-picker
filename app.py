@@ -123,11 +123,12 @@ async def get_upload_page():
                 <h1>Color Detection</h1>
                 <form class="upload-form" id="uploadForm">
                     <div class="drop-zone" id="dropZone">
-                        <p>Drag and drop up to 10 logo files here or click to select</p>
+                        <p>Drag and drop up to 100 logo files here or click to select</p>
                         <input type="file" class="file-input" id="fileInput" accept=".png,.svg" multiple required>
                     </div>
-                    <button type="submit" class="submit-btn">Detect Colors</button>
+                    <button type="submit" class="submit-btn" id="detectBtn">Detect Colors</button>
                 </form>
+                <div id="loading" style="display:none; text-align:center; margin-top:20px; font-weight:bold; color:#4CAF50;">Uploading and processing files...</div>
                 <div id="result"></div>
             </div>
             <script>
@@ -157,14 +158,22 @@ async def get_upload_page():
 
                 document.getElementById('uploadForm').onsubmit = async (e) => {
                     e.preventDefault();
+                    const detectBtn = document.getElementById('detectBtn');
+                    const loadingDiv = document.getElementById('loading');
+                    detectBtn.disabled = true;
+                    loadingDiv.style.display = 'block';
                     
                     if (!fileInput.files.length) {
                         alert('Please select at least one file');
+                        detectBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
                         return;
                     }
 
-                    if (fileInput.files.length > 10) {
-                        alert('Maximum 10 files allowed');
+                    if (fileInput.files.length > 100) {
+                        alert('Maximum 100 files allowed');
+                        detectBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
                         return;
                     }
 
@@ -205,6 +214,9 @@ async def get_upload_page():
                     } catch (error) {
                         alert('Error uploading files');
                         console.error(error);
+                    } finally {
+                        detectBtn.disabled = false;
+                        loadingDiv.style.display = 'none';
                     }
                 };
             </script>

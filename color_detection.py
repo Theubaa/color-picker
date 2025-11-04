@@ -3,18 +3,27 @@ import numpy as np
 from bs4 import BeautifulSoup
 import os
 import re
+import cv2
 
-def count_png_colors(file_path):
+def count_png_colors(file_path, n_colors=5):
     image = Image.open(file_path).convert("RGBA")
-    pixels = np.array(image).reshape(-1, 4)
-    unique_colors = set(tuple(p) for p in pixels if p[3] != 0)
+    np_img = np.array(image)
+    # Remove fully transparent pixels
+    pixels = np_img[np_img[:, :, 3] != 0][:, :3]
+    if len(pixels) == 0:
+        return 0, set()
+    # Use OpenCV k-means to find dominant colors
+    Z = pixels.reshape((-1, 3)).astype(np.float32)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+    K = min(n_colors, len(Z))
+    _, labels, centers = cv2.kmeans(Z, K, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    centers = np.uint8(centers)
     color_labels = set()
-    for color in unique_colors:
-        if color[:3] == (255, 255, 255):
+    for center in centers:
+        if tuple(center) == (255, 255, 255):
             color_labels.add('white')
         else:
-            # Convert to hex
-            color_labels.add('#{:02X}{:02X}{:02X}'.format(*color[:3]))
+            color_labels.add('#{:02X}{:02X}{:02X}'.format(*center))
     return len(color_labels), color_labels
 
 def extract_svg_colors(file_path):
@@ -81,8 +90,12 @@ def extract_svg_colors(file_path):
         style = tag.get('style')
         if style:
             for part in style.split(';'):
-                if ':' in part and ('fill' in part or 'stroke' in part):
-                    color_val = part.split(':')[1].strip()
+                if ':' in part:
+                    prop, color_val = part.split(':', 1)
+                    prop = prop.strip().lower()
+                    color_val = color_val.strip()
+                    if prop not in ['fill', 'stroke']:
+                        continue
                     if color_val.lower() in ['none', 'transparent'] or color_val.startswith('url('):
                         continue
                     colors.add(normalize_color(color_val))
@@ -94,7 +107,7 @@ def extract_svg_colors(file_path):
                 colors.add(normalize_color(stop_color))
             stop_style = stop.get('style')
             if stop_style:
-                # e.g. style="stop-color:#FF0000;stop-opacity:1"
+                # Only add stop-color, ignore stop-opacity, offset, etc.
                 for part in stop_style.split(';'):
                     if part.strip().startswith('stop-color:'):
                         color_val = part.split(':',1)[1].strip()
